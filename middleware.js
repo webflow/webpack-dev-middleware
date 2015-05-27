@@ -100,24 +100,40 @@ module.exports = function(compiler, options) {
 	}
 
 	function pathJoin(a, b) {
-		return a == "/" ? "/" + b : (a||"") + "/" + b
+		return a == "/" ? "/" + b : (a||"") + "/" + b;
 	}
 
 	function getFilenameFromUrl(url) {
-		// publicPrefix is the folder our bundle should be in
-		var localPrefix = options.publicPath || "/";
-		if(url.indexOf(localPrefix) !== 0) {
-			if(/^(https?:)?\/\//.test(localPrefix)) {
-				localPrefix = "/" + localPrefix.replace(/^(https?:)?\/\/[^\/]+\//, "");
-				// fast exit if another directory requested
-				if(url.indexOf(localPrefix) !== 0) return false;
-			} else return false;
-		}
-		// get filename from request
-		var filename = url.substr(localPrefix.length);
-		if(filename.indexOf("?") >= 0) {
-			filename = filename.substr(0, filename.indexOf("?"));
-		}
+		// localPreview is the folder our bundle should be in
+
+		var localPrefixes = options.publicPath || ["/"];
+    var filename;
+
+    if (typeof localPrefixes == 'string') {
+      localPrefixes = [ localPrefixes ];
+    }
+
+    for (var i in localPrefixes) {
+      var localPrefix = localPrefixes[i];
+      if(url.indexOf(localPrefix) !== 0) {
+        if(/^(https?:)?\/\//.test(localPrefix)) {
+          localPrefix = "/" + localPrefix.replace(/^(https?:)?\/\/[^\/]+\//, "");
+          // fast exit if another directory requested
+          if(url.indexOf(localPrefix) !== 0) continue;
+        } else continue;
+      }
+
+      // get filename from request
+      filename = url.substr(localPrefix.length);
+      if(filename.indexOf("?") >= 0) {
+        filename = filename.substr(0, filename.indexOf("?"));
+      }
+    }
+
+    if (!filename) {
+      return false;
+    }
+
 		return filename ? pathJoin(compiler.outputPath, filename) : compiler.outputPath;
 	}
 
@@ -125,6 +141,7 @@ module.exports = function(compiler, options) {
 	function webpackDevMiddleware(req, res, next) {
 		var filename = getFilenameFromUrl(req.url);
 		if (filename === false) return next();
+
 
 		// in lazy mode, rebuild on bundle request
 		if(options.lazy && filename === pathJoin(compiler.outputPath, options.filename))
@@ -150,7 +167,6 @@ module.exports = function(compiler, options) {
 			var content = fs.readFileSync(filename);
 			res.setHeader("Access-Control-Allow-Origin", "*"); // To support XHR, etc.
 			res.setHeader("Content-Type", mime.lookup(filename));
-			res.setHeader("Content-Length", content.length);
 			if(options.headers) {
 				for(var name in options.headers) {
 					res.setHeader(name, options.headers[name]);
